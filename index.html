@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AdOptimizer · Campañas Facebook Ads</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="motor.js"></script>
+<style>
+:root{--bg:#f6f7fb;--card:#fff;--ink:#0f172a;--mut:#64748b;--line:#e2e8f0;--pri:#2563eb;--ok:#16a34a;--bad:#dc2626;--warn:#ea580c;
+--c1:#2563eb;--c2:#ea580c;--c3:#16a34a;--c4:#7c3aed;}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+header{background:#0f172a;color:#fff;padding:18px 28px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+header h1{font-size:18px;margin:0}header small{color:#94a3b8}
+nav{display:flex;gap:4px;padding:0 28px;background:#0f172a;flex-wrap:wrap}
+nav button{background:none;border:0;color:#cbd5e1;padding:12px 14px;font:inherit;cursor:pointer;border-bottom:3px solid transparent}
+nav button.on{color:#fff;border-color:#60a5fa;font-weight:600}
+main{max-width:1280px;margin:0 auto;padding:22px 16px 60px}
+.tab{display:none}.tab.on{display:block}
+.grid{display:grid;gap:16px}.g4{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}.g2{grid-template-columns:repeat(auto-fit,minmax(420px,1fr))}
+@media(max-width:600px){.g2{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+.card h3{margin:0 0 10px;font-size:14px}.card p.sub{color:var(--mut);margin:-6px 0 12px;font-size:12.5px}
+.kpi .v{font-size:24px;font-weight:700;margin-top:4px}.kpi .l{color:var(--mut);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+table{width:100%;border-collapse:collapse;font-size:12.5px}th,td{white-space:nowrap;padding:7px 8px;border-bottom:1px solid var(--line);text-align:right}
+th:first-child,td:first-child{text-align:left}th{color:var(--mut);font-weight:600;background:#f8fafc}
+.pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600}
+.si{background:#dcfce7;color:#166534}.no{background:#f1f5f9;color:#475569}.neg{color:var(--bad)}.pos{color:var(--ok)}
+label{display:block;font-size:12px;color:var(--mut);margin:8px 0 4px}
+input,select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;background:#fff}
+.btn{background:var(--pri);color:#fff;border:0;border-radius:8px;padding:10px 16px;font:inherit;font-weight:600;cursor:pointer;margin-top:12px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.gauge{height:14px;background:#e2e8f0;border-radius:99px;overflow:hidden;margin:6px 0 2px}.gauge>div{height:100%}
+.banner{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;padding:10px 14px;border-radius:10px;margin-bottom:16px;font-size:13px}
+.reco{background:#eff6ff;border-left:4px solid var(--pri);padding:10px 12px;border-radius:6px;margin-top:10px}
+.scroll{max-height:420px;overflow:auto}canvas{max-height:320px}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>AdOptimizer · Optimización de Campañas Publicitarias</h1>
+  <small>Minería de datos · CRISP-DM · Random Forest + AdaBoost · ROI · A/B testing · Atribución</small></div>
+  <div class="row"><label style="color:#cbd5e1;margin:0">Valor por conversión aprobada (USD)</label>
+  <input id="valor" type="number" value="100" min="1" style="width:100px"></div>
+</header>
+<nav id="nav">
+  <button data-t="dash" class="on">Dashboard de campañas</button>
+  <button data-t="canales">Comparación de canales</button>
+  <button data-t="pred">Predicción de conversión</button>
+  <button data-t="inv">Recomendación de inversión</button>
+  <button data-t="mod">Modelos</button>
+</nav>
+<main>
+<div id="replica" class="banner" style="display:none">⚠ Datos cargados desde la réplica de prueba. Coloque el dataset real de Kaggle en <code>data/</code> y ejecute <code>python src/pipeline.py</code>.</div>
+
+<!-- DASHBOARD -->
+<section id="dash" class="tab on">
+  <div class="row" style="margin-bottom:12px"><label style="margin:0">Filtrar campaña</label>
+  <select id="fCamp" style="width:220px"></select></div>
+  <div class="grid g4" id="kpis"></div>
+  <div class="grid g2" style="margin-top:16px">
+    <div class="card"><h3>Inversión vs. conversiones aprobadas por campaña</h3><canvas id="chCamp"></canvas></div>
+    <div class="card"><h3>CTR (%) por edad y género</h3><canvas id="chCtr"></canvas></div>
+    <div class="card"><h3>ROI (%) por edad y género</h3><p class="sub">Se recalcula con el valor por conversión del encabezado.</p><canvas id="chRoi"></canvas></div>
+    <div class="card"><h3>Embudo de conversión</h3><canvas id="chFunnel"></canvas></div>
+  </div>
+  <div class="card" style="margin-top:16px"><h3>Anuncios con mejor y peor ROI</h3><div class="scroll"><table id="tAds"></table></div></div>
+</section>
+
+<!-- CANALES -->
+<section id="canales" class="tab">
+  <div class="card"><h3>Comparación de canales (campañas)</h3><table id="tCanales"></table></div>
+  <div class="grid g2" style="margin-top:16px">
+    <div class="card"><h3>Modelos de atribución por campaña</h3><p class="sub">% del crédito de conversión asignado a cada canal según el modelo.</p><canvas id="chAtr"></canvas></div>
+    <div class="card"><h3>Atribución data-driven de factores (Shapley)</h3><p class="sub">Aporte de cada grupo de variables al poder predictivo (ROC-AUC).</p><canvas id="chShap"></canvas></div>
+  </div>
+  <div class="card" style="margin-top:16px"><h3>A/B testing</h3><p class="sub">Prueba z de dos proporciones (frecuentista) y probabilidad bayesiana de que B supere a A (priors Beta(1,1)).</p><table id="tAB"></table>
+  <p class="sub" id="potencia" style="margin-top:10px"></p></div>
+  <div class="card" style="margin-top:16px"><h3>Pruebas globales</h3><table id="tABg"></table></div>
+</section>
+
+<!-- PREDICCION -->
+<section id="pred" class="tab">
+  <div class="grid g2">
+    <div class="card"><h3>Simulador de anuncio</h3><p class="sub">Configure un anuncio y obtenga la probabilidad de conversión (Random Forest y AdaBoost).</p>
+      <div class="grid" style="grid-template-columns:1fr 1fr;gap:4px 12px">
+        <div><label>Campaña</label><select id="pCamp"></select></div>
+        <div><label>Edad</label><select id="pEdad"></select></div>
+        <div><label>Género</label><select id="pGen"><option value="M">Hombres</option><option value="F">Mujeres</option></select></div>
+        <div><label>Interés (código)</label><select id="pInt"></select></div>
+        <div><label>Impresiones</label><input id="pImp" type="number" value="50000"></div>
+        <div><label>Clics</label><input id="pClk" type="number" value="10"></div>
+        <div><label>Gasto (USD)</label><input id="pGas" type="number" value="15"></div>
+      </div>
+      <button class="btn" id="bPred">Predecir conversión</button>
+    </div>
+    <div class="card" id="resPred"><h3>Resultado</h3><p class="sub">Ejecute una predicción.</p></div>
+  </div>
+</section>
+
+<!-- INVERSION -->
+<section id="inv" class="tab">
+  <div class="card"><h3>Optimizador de presupuesto</h3>
+    <p class="sub">Curvas de respuesta con rendimientos decrecientes por segmento (campaña × edad × género), conv = k·n·(B/n)<sup>b</sup>, asignación greedy por beneficio marginal.</p>
+    <div class="row">
+      <div style="width:200px"><label>Presupuesto total (USD)</label><input id="iPres" type="number" value="20000"></div>
+      <div style="width:320px"><label>Criterio</label><select id="iModo">
+        <option value="0">Maximizar conversiones con todo el presupuesto</option>
+        <option value="1">Invertir solo mientras el ROI marginal sea positivo</option></select></div>
+      <button class="btn" id="bOpt">Calcular recomendación</button>
+    </div>
+  </div>
+  <div class="grid g4" id="kInv" style="margin-top:16px"></div>
+  <div class="grid g2" style="margin-top:16px">
+    <div class="card"><h3>Inversión histórica proporcional vs. recomendada</h3><canvas id="chInv"></canvas></div>
+    <div class="card"><h3>Detalle de la asignación</h3><div class="scroll"><table id="tInv"></table></div></div>
+  </div>
+</section>
+
+<!-- MODELOS -->
+<section id="mod" class="tab">
+  <div class="card"><h3>Evaluación de modelos de predicción de conversión (conjunto de prueba, 25%)</h3><table id="tMod"></table></div>
+  <div class="grid g2" style="margin-top:16px">
+    <div class="card"><h3>Curvas ROC</h3><canvas id="chROC"></canvas></div>
+    <div class="card"><h3>Importancia de variables (permutación, Random Forest)</h3><canvas id="chImp"></canvas></div>
+  </div>
+  <div class="card" style="margin-top:16px"><h3>Regresión de conversiones aprobadas</h3><table id="tReg"></table></div>
+</section>
+</main>
+
+<script>
+const $=id=>document.getElementById(id);
+const fmt=(v,d=0)=>v==null||isNaN(v)?'–':Number(v).toLocaleString('es-CO',{maximumFractionDigits:d,minimumFractionDigits:d});
+const usd=v=>'$'+fmt(v,0), pct=(v,d=1)=>fmt(v,d)+'%';
+const COL=['#2563eb','#ea580c','#16a34a','#7c3aed','#64748b','#0891b2'];
+let D, MOD, charts={};
+Chart.defaults.font.family='Inter'; Chart.defaults.font.size=11;
+function chart(id,cfg){ if(charts[id]) charts[id].destroy(); charts[id]=new Chart($(id),cfg); }
+const valor=()=>Math.max(1,+$('valor').value||100);
+function table(id,head,rows){ $(id).innerHTML='<tr>'+head.map(h=>`<th>${h}</th>`).join('')+'</tr>'+rows.map(r=>'<tr>'+r.map(c=>`<td>${c}</td>`).join('')+'</tr>').join(''); }
+
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.id===b.dataset.t));
+});
+
+function sum(a,k){return a.reduce((s,x)=>s+(+x[k]||0),0)}
+function grupo(a,key){const m={};a.forEach(x=>{(m[x[key]]=m[x[key]]||[]).push(x)});return m}
+
+function renderDash(){
+  const v=valor(), f=$('fCamp').value;
+  const ads=D.anuncios.filter(a=>f==='all'||a.campana===f);
+  const sp=sum(ads,'Spent'),im=sum(ads,'Impressions'),ck=sum(ads,'Clicks'),tc=sum(ads,'Total_Conversion'),ap=sum(ads,'Approved_Conversion');
+  const roi=(ap*v-sp)/sp*100;
+  const k=[['Inversión',usd(sp)],['Impresiones',fmt(im)],['Clics',fmt(ck)],['CTR',pct(ck/im*100,3)],['CPC','$'+fmt(sp/ck,2)],
+    ['Conversiones',fmt(tc)],['Aprobadas',fmt(ap)],['CPA',usd(sp/ap)],['ROAS',fmt(ap*v/sp,2)+'x'],['ROI',`<span class="${roi<0?'neg':'pos'}">${pct(roi)}</span>`]];
+  $('kpis').innerHTML=k.map(([l,x])=>`<div class="card kpi"><div class="l">${l}</div><div class="v">${x}</div></div>`).join('');
+  const gc=grupo(D.anuncios,'campana'), cs=Object.keys(gc).sort();
+  chart('chCamp',{type:'bar',data:{labels:cs,datasets:[{label:'Inversión (USD)',data:cs.map(c=>sum(gc[c],'Spent')),backgroundColor:COL[0],yAxisID:'y'},
+    {label:'Conv. aprobadas',data:cs.map(c=>sum(gc[c],'Approved_Conversion')),backgroundColor:COL[1],yAxisID:'y1'}]},
+    options:{scales:{y:{position:'left',title:{display:true,text:'USD'}},y1:{position:'right',grid:{display:false},title:{display:true,text:'Conversiones'}}}}});
+  const ages=['30-34','35-39','40-44','45-49'];
+  const by=(e,g,fn)=>{const a=ads.filter(x=>x.age===e&&x.gender===g);return fn(a)};
+  chart('chCtr',{type:'bar',data:{labels:ages,datasets:['F','M'].map((g,i)=>({label:g==='F'?'Mujeres':'Hombres',backgroundColor:COL[i?0:1],
+    data:ages.map(e=>by(e,g,a=>sum(a,'Clicks')/sum(a,'Impressions')*100))}))}});
+  chart('chRoi',{type:'bar',data:{labels:ages,datasets:['F','M'].map((g,i)=>({label:g==='F'?'Mujeres':'Hombres',backgroundColor:COL[i?0:1],
+    data:ages.map(e=>by(e,g,a=>{const s=sum(a,'Spent');return s?(sum(a,'Approved_Conversion')*v-s)/s*100:0}))}))}});
+  chart('chFunnel',{type:'bar',data:{labels:['Impresiones','Clics','Conversiones','Aprobadas'],datasets:[{label:'Volumen (escala log)',data:[im,ck,tc,ap],backgroundColor:COL.slice(0,4)}]},
+    options:{indexAxis:'y',scales:{x:{type:'logarithmic'}},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.raw)}}}}});
+  const r=ads.filter(a=>a.Spent>5).map(a=>({...a,roi:(a.Approved_Conversion*v-a.Spent)/a.Spent*100})).sort((a,b)=>b.roi-a.roi);
+  const sel=[...r.slice(0,8),...r.slice(-8)];
+  table('tAds',['Anuncio','Campaña','Edad','Género','Interés','Impr.','Clics','Gasto','Aprob.','ROI'],
+    sel.map(a=>[a.ad_id,a.campana,a.age,a.gender,a.interest,fmt(a.Impressions),a.Clicks,usd(a.Spent),a.Approved_Conversion,`<span class="${a.roi<0?'neg':'pos'}">${pct(a.roi)}</span>`]));
+}
+
+function renderCanales(){
+  const v=valor(), R=D.resultados;
+  table('tCanales',['Canal','Anuncios','Inversión','Impresiones','CTR','CPC','CPM','Aprobadas','CPA','ROAS','ROI'],
+    R.roi.campana.map(c=>{const roi=(c.aprobadas*v-c.gasto)/c.gasto*100;return [c.grupo,c.anuncios,usd(c.gasto),fmt(c.impresiones),pct(c.CTR,4),'$'+fmt(c.CPC,2),'$'+fmt(c.CPM,3),c.aprobadas,usd(c.CPA),fmt(c.aprobadas*v/c.gasto,2)+'x',`<span class="${roi<0?'neg':'pos'}">${pct(roi)}</span>`]}));
+  const A=R.atribucion_campana, mods=Object.keys(A[0]).filter(k=>k!=='canal');
+  chart('chAtr',{type:'bar',data:{labels:mods,datasets:A.map((a,i)=>({label:a.canal,data:mods.map(m=>a[m]*100),backgroundColor:COL[i]}))},
+    options:{scales:{y:{title:{display:true,text:'% crédito'}}}}});
+  const S=R.shapley_factores, ks=Object.keys(S).sort((a,b)=>S[b].porcentaje-S[a].porcentaje);
+  chart('chShap',{type:'bar',data:{labels:ks,datasets:[{data:ks.map(k=>S[k].porcentaje),backgroundColor:COL[3]}]},options:{indexAxis:'y',plugins:{legend:{display:false}}}});
+  table('tAB',['Prueba','Métrica','A','B','Tasa A','Tasa B','Lift B vs A','z','p-valor','P(B>A) bayes','¿Significativo?'],
+    R.ab_testing.map(p=>[p.prueba,p.metrica,p.A,p.B,pct(p.tasa_A*100,3),pct(p.tasa_B*100,3),pct(p['lift_B_vs_A_%']),fmt(p.z,2),p.p_valor<1e-4?'<0.0001':fmt(p.p_valor,4),pct(p.prob_bayes_B_mejor*100),
+      `<span class="pill ${p['significativo_5%']?'si':'no'}">${p['significativo_5%']?'Sí':'No'}</span>`]));
+  const P=R.potencia;
+  $('potencia').innerHTML=`Diseño de próximos experimentos: para detectar un aumento relativo de ${P.mde_relativo*100}% en el CTR (base ${pct(P.ctr_base*100,4)}) con α=${P.alfa} y potencia ${P.potencia*100}%, se requieren <b>${fmt(P.impresiones_por_variante)}</b> impresiones por variante.`;
+  table('tABg',['Variable','Prueba','Estadístico','gl','p-valor','V de Cramér'],
+    R.ab_global.map(g=>[g.variable,g.prueba,fmt(g.estadistico,2),g.gl??'–',g.p_valor<1e-4?'<0.0001':fmt(g.p_valor,4),g.efecto_cramer_v??'–']));
+}
+
+function renderModelos(){
+  const R=D.resultados, M=R.clasificacion;
+  table('tMod',['Modelo','ROC-AUC (CV)','Accuracy','Precision','Recall','F1','ROC-AUC (test)','Hiperparámetros'],
+    Object.entries(M).map(([n,m])=>[n,fmt(m.cv_roc_auc,3),fmt(m.accuracy,3),fmt(m.precision,3),fmt(m.recall,3),fmt(m.f1,3),'<b>'+fmt(m.roc_auc,3)+'</b>',
+      '<small>'+Object.entries(m.mejores_hiperparametros).map(([k,v])=>k+'='+v).join(', ')+'</small>']));
+  chart('chROC',{type:'scatter',data:{datasets:[...Object.entries(D.roc).map(([n,[f,t]],i)=>({label:n,data:f.map((x,j)=>({x,y:t[j]})),showLine:true,pointRadius:0,borderColor:COL[i],borderWidth:2})),
+    {label:'Azar',data:[{x:0,y:0},{x:1,y:1}],showLine:true,borderDash:[5,5],borderColor:'#94a3b8',pointRadius:0}]},
+    options:{scales:{x:{min:0,max:1,title:{display:true,text:'FPR'}},y:{min:0,max:1,title:{display:true,text:'TPR'}}}}});
+  const I=R.importancias['Random Forest'], ks=Object.keys(I);
+  chart('chImp',{type:'bar',data:{labels:ks,datasets:[{data:ks.map(k=>I[k]),backgroundColor:COL[0]}]},options:{indexAxis:'y',plugins:{legend:{display:false}}}});
+  table('tReg',['Modelo','RMSE','MAE','R² (test)','R² (CV 5-fold)'],Object.entries(R.regresion).map(([n,m])=>[n,fmt(m.rmse,3),fmt(m.mae,3),fmt(m.r2,3),fmt(m.cv_r2,3)]));
+}
+
+async function predecir(){
+  const body={campana:$('pCamp').value,edad:$('pEdad').value,genero:$('pGen').value,interes:$('pInt').value,
+    impresiones:$('pImp').value,clics:$('pClk').value,gasto:$('pGas').value,valor:valor()};
+  const r=Motor.predecir(MOD,body,valor());
+  const bar=(l,p,c)=>`<div style="margin:10px 0"><div class="row" style="justify-content:space-between"><span>${l}</span><b>${pct(p*100)}</b></div><div class="gauge"><div style="width:${p*100}%;background:${c}"></div></div></div>`;
+  $('resPred').innerHTML=`<h3>Resultado</h3>${bar('Random Forest',r.prob_rf,COL[0])}${bar('AdaBoost',r.prob_adaboost,COL[1])}${bar('Ensamble (promedio)',r.prob_ensamble,COL[2])}
+   <table><tr><td>Conversiones aprobadas esperadas</td><td><b>${fmt(r.conv_esperadas,2)}</b></td></tr>
+   <tr><td>Ingreso esperado</td><td>${usd(r.ingreso_esperado)}</td></tr><tr><td>CPA esperado</td><td>${r.cpa_esperado?usd(r.cpa_esperado):'–'}</td></tr>
+   <tr><td>ROI esperado</td><td class="${r.roi_esperado<0?'neg':'pos'}">${r.roi_esperado==null?'–':pct(r.roi_esperado*100)}</td></tr></table>
+   <div class="reco">${r.recomendacion}</div>`;
+}
+
+async function optimizar(){
+  const body={presupuesto:+$('iPres').value,valor:valor(),solo_rentable:$('iModo').value==='1'};
+  const r=Motor.optimizar(D.segmentos,D.b,body.presupuesto,body.valor,body.solo_rentable);
+  const k=[['Inversión recomendada',usd(r.inversion)],['Conv. esperadas (óptimo)',fmt(r.conv_optimas,1)],['Conv. con reparto histórico',fmt(r.conv_base,1)],
+    ['Mejora en conversiones',pct(r['mejora_%'])],['ROI óptimo',pct(r.roi_optimo*100)],['ROI reparto histórico',pct(r.roi_base*100)]];
+  $('kInv').innerHTML=k.map(([l,x])=>`<div class="card kpi"><div class="l">${l}</div><div class="v">${x}</div></div>`).join('');
+  const top=r.asignacion.slice(0,12);
+  chart('chInv',{type:'bar',data:{labels:top.map(f=>f.segmento),datasets:[{label:'Histórica proporcional',data:top.map(f=>f.inversion_historica_prop),backgroundColor:'#94a3b8'},
+    {label:'Recomendada',data:top.map(f=>f.inversion),backgroundColor:COL[2]}]},options:{indexAxis:'y'}});
+  table('tInv',['Segmento','Campaña','Edad','Género','Histórica prop.','Recomendada','Conv. esp.','Cambio'],
+    r.asignacion.map(f=>{const d=f.inversion-f.inversion_historica_prop;return [f.segmento,f.campana,f.edad,f.genero,usd(f.inversion_historica_prop),'<b>'+usd(f.inversion)+'</b>',fmt(f.conv_esperadas,1),`<span class="${d<0?'neg':'pos'}">${d<0?'▼':'▲'} ${usd(Math.abs(d))}</span>`]}));
+}
+
+(async()=>{
+  [D,MOD]=await Promise.all([fetch('data.json').then(r=>r.json()),fetch('modelos.json').then(r=>r.json())]);
+  if(D.resultados.es_replica) $('replica').style.display='block';
+  $('valor').value=D.resultados.valor_conversion;
+  const cs=[...new Set(D.anuncios.map(a=>a.campana))].sort();
+  $('fCamp').innerHTML='<option value="all">Todas</option>'+cs.map(c=>`<option>${c}</option>`).join('');
+  $('pCamp').innerHTML=D.opciones.campanas.map(c=>`<option value="${c}" ${c==1178?'selected':''}>${c}</option>`).join('');
+  $('pEdad').innerHTML=D.opciones.edades.map(c=>`<option>${c}</option>`).join('');
+  $('pInt').innerHTML=D.opciones.intereses.map(c=>`<option ${c==16?'selected':''}>${c}</option>`).join('');
+  $('iPres').value=Math.round(D.resultados.recomendacion.presupuesto/1000)*1000;
+  renderDash(); renderCanales(); renderModelos();
+  $('fCamp').onchange=renderDash;
+  $('valor').onchange=()=>{renderDash();renderCanales();};
+  $('bPred').onclick=predecir; $('bOpt').onclick=optimizar;
+})();
+</script>
+</body>
+</html>
